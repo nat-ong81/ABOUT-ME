@@ -1,7 +1,7 @@
 import { h } from '../ui/dom.js';
 import { db } from '../storage/index.js';
 import { RX_EYES, RX_COLUMNS } from '../config.js';
-import { navigate } from '../router.js';
+import { navigate, refresh } from '../router.js';
 import { removeFiles } from '../attachments.js';
 import {
   spread, act, defs, field, input, textarea, formActions, formError,
@@ -17,7 +17,9 @@ async function loadGroups() { return allGroups(await db.all('groups')); }
 
 function sortEntries(entries, group) {
   if (group.layout === 'rx') return entries.sort((a, b) => (b.data?.issued || '').localeCompare(a.data?.issued || '') || (b.createdAt || 0) - (a.createdAt || 0));
-  return entries.sort(byText((e) => meTitle(e, group)));
+  // Hand-arranged order first (see the section page), then alphabetical.
+  const title = byText((e) => meTitle(e, group));
+  return entries.sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || title(a, b));
 }
 
 // Sphere / cylinder / axis for each eye, as it is written on a prescription.
@@ -41,7 +43,9 @@ export async function mePage() {
       sectionLabel(g.name,
         h('span', { class: 'section-label__no' }, `01.${i + 1}`),
         h('span', { class: 'section-label__actions' },
-          g.custom && act('Edit section', `#/me/sections/${g.id}/edit`, { quiet: true }),
+          g.custom
+            ? act('Edit section', `#/me/sections/${g.id}/edit`, { quiet: true })
+            : g.layout !== 'rx' && mine.length > 1 && act('Reorder', `#/me/sections/${g.id}/edit`, { quiet: true }),
           act('Add', `#/me/${g.id}/new`))));
 
     if (!mine.length) {
@@ -219,6 +223,7 @@ export async function meForm({ params }) {
         date: r.querySelector('.prices__date').value,
       })).filter((p) => p.place || p.price) : undefined,
       fileIds: photos ? photos.value() : [],
+      order: editing?.order ?? now, // new entries go to the bottom
       createdAt: editing?.createdAt || now, updatedAt: now,
     };
     await db.put('me', entry);
@@ -235,40 +240,66 @@ export async function meForm({ params }) {
   };
 }
 
-// ---- custom sections ---------------------------------------------------------
+// ---- a section: its entries (add, open, reorder), its name ----------------------
 
 export async function meSectionForm({ params }) {
-  const editing = params.id ? await db.get('groups', params.id) : null;
-  if (params.id && !editing) return { redirect: 'me' };
-  const name = input({ value: editing?.name || '', placeholder: 'Sizes, documents, hair…', maxLength: 40, autocapitalize: 'words' });
+  const groups = await loadGroups();
+  const g = params.id ? groups.find((x) => x.id === params.id) : null;
+  if (params.id && (!g || g.layout === 'rx')) return { redirect: 'me' };
+  const stored = g?.custom ? await db.get('groups', g.id) : null;
+  const entries = g ? sortEntries((await db.all('me')).filter((e) => e.group === g.id), g) : [];
+
+  async function move(index, by) {
+    const list = [...entries];
+    const [item] = list.splice(index, 1);
+    list.splice(index + by, 0, item);
+    await db.putMany('me', list.map((e, order) => ({ ...e, order })));
+    refresh();
+  }
 
   async function del() {
-    const entries = (await db.all('me')).filter((e) => e.group === editing.id);
     const ok = await confirmDialog({
-      title: `Delete “${editing.name}”?`,
+      title: `Delete “${g.name}”?`,
       body: entries.length ? `Its ${entries.length === 1 ? 'entry is' : entries.length + ' entries are'} deleted with it. This cannot be undone.` : 'This cannot be undone.',
     });
     if (!ok) return;
     for (const e of entries) { await removeFiles(e.fileIds); await db.remove('me', e.id); }
-    await db.remove('groups', editing.id);
+    await db.remove('groups', g.id);
     toast('Section deleted');
     navigate('me', { replace: true });
   }
 
-  const form = h('form', { class: 'form', novalidate: true, onsubmit: async (ev) => {
-    ev.preventDefault();
-    if (!name.value.trim()) return formError(form, 'Give the section a name.');
-    const id = editing?.id || uid();
-    await db.put('groups', { id, name: name.value.trim(), createdAt: editing?.createdAt || Date.now() });
-    toast(editing ? 'Section renamed' : 'Section added. Now add its first entry.');
-    // A new section opens straight onto its first entry.
-    navigate(editing ? 'me' : `me/${id}/new`, { replace: true });
-  } },
-    field('Section name', name, { hint: 'After naming it you add entries: each has a title, your own header and text fields, notes, and photos or documents.' }),
-    formActions({ submit: editing ? 'Save changes' : 'Next', cancelHref: '#/me', onDelete: editing ? del : null, deleteLabel: 'Delete section' }));
+  const list = g && h('section', { class: 'order' },
+    sectionLabel('Entries', h('span', { class: 'section-label__actions' }, act('Add entry +', `#/me/${g.id}/new`))),
+    entries.length
+      ? h('ol', null, entries.map((e, i) => h('li', { class: 'order__row' },
+        h('a', { class: 'order__link', href: `#/me/${g.id}/${e.id}/edit` },
+          h('span', { class: 'lines__title' }, meTitle(e, g)),
+          h('span', { class: 'lines__sub' }, meSummary(e, g))),
+        h('button', { class: 'move', type: 'button', 'aria-label': `Move ${meTitle(e, g)} up`, disabled: i === 0, onclick: () => move(i, -1) }),
+        h('button', { class: 'move move--down', type: 'button', 'aria-label': `Move ${meTitle(e, g)} down`, disabled: i === entries.length - 1, onclick: () => move(i, 1) }))))
+      : h('p', { class: 'sheet__empty' }, 'No entries yet. Add one to start filling this section: each entry has a title and your own header and text fields.'));
+
+  // Built-in sections (Medication, Allergies) can be reordered but not renamed.
+  let form = null;
+  if (!g || g.custom) {
+    const name = input({ value: stored?.name || '', placeholder: 'Sizes, documents, hair…', maxLength: 40, autocapitalize: 'words' });
+    form = h('form', { class: 'form', novalidate: true, onsubmit: async (ev) => {
+      ev.preventDefault();
+      if (!name.value.trim()) return formError(form, 'Give the section a name.');
+      const id = stored?.id || uid();
+      await db.put('groups', { id, name: name.value.trim(), createdAt: stored?.createdAt || Date.now() });
+      toast(stored ? 'Section renamed' : 'Section added. Now add its first entry.');
+      // A new section opens straight onto its first entry.
+      navigate(stored ? 'me' : `me/${id}/new`, { replace: true });
+    } },
+      field('Section name', name, { hint: stored ? null : 'After naming it you add entries: each has a title, your own header and text fields, notes, and photos or documents.' }),
+      formActions({ submit: stored ? 'Save name' : 'Next', cancelHref: '#/me', onDelete: stored ? del : null, deleteLabel: 'Delete section' }));
+  }
 
   return {
-    crumbs: [HOME, ME, { label: editing ? 'Edit section' : 'New section' }],
-    node: spread({ kicker: 'Profile', title: editing ? 'Edit section' : 'New section' }, form),
+    crumbs: [HOME, ME, { label: g ? g.name : 'New section' }],
+    hideFoot: true,
+    node: spread({ kicker: 'Profile', title: g ? g.name : 'New section' }, h('div', null, list, form)),
   };
 }

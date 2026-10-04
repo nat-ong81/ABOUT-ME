@@ -4,7 +4,7 @@
 export const APP = {
   id: 'index-of-me',
   name: 'About Me',
-  version: '1.3.0',
+  version: '1.3.1',
   schema: 1,
 };
 

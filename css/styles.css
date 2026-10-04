@@ -310,6 +310,16 @@ table { border-collapse: collapse; width: 100%; }
 .product__price { font: 600 var(--h2)/1.2 var(--head); letter-spacing: .1em; margin-bottom: 14px; }
 .stock__meta { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
 
+/* Section page: entries with up / down arrows. */
+.order { margin-bottom: 28px; }
+.order__row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; margin-inline: calc(-1 * var(--bleed)); padding-inline: var(--bleed); border-bottom: 1px solid var(--rule); }
+.order li:first-child { border-top: 1px solid var(--rule); }
+.order__link { display: grid; gap: 3px; min-width: 0; min-height: 56px; padding-block: 12px; align-content: center; text-decoration: none; }
+.move { position: relative; width: 40px; height: 48px; padding: 0; border: 0; background: none; }
+.move::before { content: ""; position: absolute; top: 50%; left: 50%; width: 9px; height: 9px; border-left: 1px solid var(--ink); border-top: 1px solid var(--ink); transform: translate(-50%, -25%) rotate(45deg); }
+.move--down::before { transform: translate(-50%, -75%) rotate(-135deg); }
+.move:disabled { opacity: .18; }
+
 /* Back arrow, bottom left. */
 .back { position: fixed; z-index: 30; left: max(calc(var(--gutter) - var(--bleed)), env(safe-area-inset-left)); bottom: calc(16px + env(safe-area-inset-bottom)); width: 44px; height: 44px; padding: 0; border: 1px solid var(--ink-2); border-radius: 50%; background: var(--paper); }
 .back::before { content: ""; position: absolute; top: 50%; left: 50%; width: 8px; height: 8px; border-left: 1px solid var(--ink); border-bottom: 1px solid var(--ink); transform: translate(-90%, -50%) rotate(45deg); }
@@ -409,7 +419,7 @@ select.input option { color: #202020; background: #fff; }
 .check__box { -webkit-appearance: none; appearance: none; flex: none; width: 20px; height: 20px; margin: 0; border: 1px solid var(--ink); border-radius: 50%; background: none; transition: background .2s var(--ease), box-shadow .2s var(--ease); }
 .check__box:checked { background: var(--ink); box-shadow: inset 0 0 0 4px var(--paper); }
 .form__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--ink); }
-.form__actions .btn { min-width: 124px; }
+.form__actions .btn { min-width: 104px; padding-inline: 16px; }
 .form__delete { flex-basis: 100%; justify-content: flex-start; }
 .form__error { font-style: italic; margin-top: 18px; }
 .form__error:empty { display: none; }
