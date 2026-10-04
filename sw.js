@@ -5,7 +5,7 @@
 //
 // Change VERSION whenever any file below changes, so installed copies update.
 
-const VERSION = '1.2.0';
+const VERSION = '1.2.1';
 const SHELL = 'iom-shell-' + VERSION;
 const ASSETS = [
   './',
