@@ -152,6 +152,10 @@ async function boot() {
 
   if (lock.isEnabled()) await lockScreen();
   footEl.append(searchPill());
+  // A file dropped outside a photo area must not make the browser open it.
+  for (const type of ['dragover', 'drop']) {
+    window.addEventListener(type, (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) e.preventDefault(); });
+  }
   watchVisibility();
   await startRouter({ outlet, onRender: chrome });
 }

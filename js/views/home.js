@@ -4,7 +4,7 @@ import { SECTIONS } from '../config.js';
 import { refresh } from '../router.js';
 import { allReminders } from '../domain/reminders.js';
 import { addFile, removeFile, fileMeta } from '../attachments.js';
-import { picture, searchPill, toast } from '../ui/components.js';
+import { picture, searchPill, toast, dropZone } from '../ui/components.js';
 import { fmtDayMonth } from '../util.js';
 
 const PHOTO_ID = 'profile-photo'; // one fixed file, so it travels with backups
@@ -17,10 +17,13 @@ export async function home() {
   const hasPhoto = !!(await fileMeta(PHOTO_ID));
 
   const input = h('input', { class: 'visually-hidden', type: 'file', accept: 'image/*' });
-  input.addEventListener('change', async () => {
+  input.addEventListener('change', () => {
     const file = input.files[0];
     input.value = '';
-    if (!file) return;
+    setPhoto(file);
+  });
+  async function setPhoto(file) {
+    if (!file || !/^image\//.test(file.type)) return;
     try {
       await removeFile(PHOTO_ID);
       await addFile(file, { id: PHOTO_ID });
@@ -29,12 +32,12 @@ export async function home() {
       console.error(err);
       toast('That photo could not be saved on this device.');
     }
-  });
+  }
 
   const node = h('div', { class: 'home' },
     h('h1', { class: 'home__title' }, 'About me'),
-    h('label', { class: 'avatar', 'aria-label': hasPhoto ? 'Change photo' : 'Upload photo' }, input,
-      hasPhoto ? picture(PHOTO_ID, { thumb: true, alt: 'My photo' }) : h('span', null, 'Upload', h('br'), 'photo')),
+    dropZone(h('label', { class: 'avatar', 'aria-label': hasPhoto ? 'Change photo' : 'Upload photo' }, input,
+      hasPhoto ? picture(PHOTO_ID, { thumb: true, alt: 'My photo' }) : h('span', null, 'Upload', h('br'), 'photo')), (files) => setPhoto(files[0])),
     h('nav', { class: 'bars', 'aria-label': 'Sections' },
       SECTIONS.map((s) => h('a', { class: 'bar', href: `#/${s.id}` }, `${Number(s.no)}. ${s.name}`))),
     searchPill(),

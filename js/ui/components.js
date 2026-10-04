@@ -132,6 +132,23 @@ export function formError(form, message) {
   el.textContent = message;
 }
 
+// Desktop only: files dragged from a folder onto `el`. Phones never fire these.
+export function dropZone(el, onFiles) {
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+  let depth = 0;
+  el.addEventListener('dragenter', (e) => { if (hasFiles(e)) { e.preventDefault(); depth++; el.classList.add('is-drop'); } });
+  el.addEventListener('dragover', (e) => { if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+  el.addEventListener('dragleave', () => { depth = Math.max(0, depth - 1); if (!depth) el.classList.remove('is-drop'); });
+  el.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    depth = 0;
+    el.classList.remove('is-drop');
+    onFiles([...e.dataTransfer.files]);
+  });
+  return el;
+}
+
 // ---- photos and documents ----------------------------------------------------
 
 export function picture(fileId, { thumb = false, alt = '', cls = '', placeholder = '' } = {}) {
@@ -229,9 +246,13 @@ export function photoField({ ids = [], multiple = true, documents = true, addLab
     addText.textContent = !multiple && current.length ? 'Replace photo' : label;
   }
 
-  fileInput.addEventListener('change', async () => {
+  fileInput.addEventListener('change', () => {
     const chosen = [...fileInput.files];
     fileInput.value = '';
+    ingest(chosen);
+  });
+
+  async function ingest(chosen) {
     if (!chosen.length) return;
     status.textContent = chosen.length === 1 ? 'Adding…' : `Adding ${chosen.length} files…`;
     try {
@@ -247,11 +268,16 @@ export function photoField({ ids = [], multiple = true, documents = true, addLab
       console.error(err);
       status.textContent = 'That file could not be saved on this device.';
     }
-  });
+  }
 
   draw();
+  const okType = (f) => /^image\//.test(f.type) || (documents && f.type === 'application/pdf');
   return {
-    node: h('div', { class: 'photos' }, list, adder, status),
+    node: dropZone(h('div', { class: 'photos' }, list, adder, status), (dropped) => {
+      const usable = dropped.filter(okType);
+      if (!usable.length) { status.textContent = documents ? 'Drop a photo or a PDF here.' : 'Drop a photo here.'; return; }
+      ingest(multiple ? usable : usable.slice(0, 1));
+    }),
     value: () => [...current],
     async commit() { for (const id of removed) await removeFile(id); removed.length = 0; added.length = 0; },
     async discard() { for (const id of added) await removeFile(id); added.length = 0; },

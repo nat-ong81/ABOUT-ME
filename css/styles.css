@@ -245,6 +245,11 @@ table { border-collapse: collapse; width: 100%; }
 .photos__pic { aspect-ratio: 4 / 5; }
 .photos__add { display: inline-flex; cursor: pointer; }
 .photos__add:focus-within .act { outline: 1px solid var(--ink); outline-offset: 4px; }
+.photos.is-drop, .avatar.is-drop { outline: 1px dashed var(--ink); outline-offset: 8px; }
+@media (hover: hover) and (pointer: fine) {
+  .photos__add { align-items: center; gap: 12px; }
+  .photos__add::after { content: "or drag files here"; font-size: 12px; font-style: italic; color: var(--ink-2); }
+}
 
 /* ---- profile sheet ---- */
 .sheet { display: grid; }
