@@ -1,15 +1,18 @@
 import { h } from '../ui/dom.js';
 import { db } from '../storage/index.js';
 import { spread, act, filters, empty } from '../ui/components.js';
-import { remindersFrom, dueInWords } from '../domain/reminders.js';
+import { allReminders, dueInWords } from '../domain/reminders.js';
 import { parseISO, MONTHS, pad2 } from '../util.js';
 
 const HOME = { label: 'Home', href: '#/' };
 const VIEWS = ['upcoming', 'overdue', 'all'];
 
 export async function remindersPage({ query }) {
-  const records = await db.all('records');
-  const all = remindersFrom(records);
+  const [records, inventory, products] = await Promise.all(['records', 'inventory', 'products'].map((s) => db.all(s)));
+  const all = allReminders(records, inventory, products);
+  const words = (r) => (r.kind === 'expiry'
+    ? dueInWords(r.due).replace(/^Overdue by (.*)$/, 'Expired $1 ago').replace(/^Due/, 'Expires')
+    : dueInWords(r.due));
   const show = VIEWS.includes(query.show) ? query.show : 'upcoming';
   const count = (s) => all.filter((r) => r.status === s).length;
   const shown = show === 'all' ? all : all.filter((r) => r.status === show);
@@ -40,7 +43,7 @@ export async function remindersPage({ query }) {
           h('h2', { class: sameYear ? 'timeline__month label' : 'timeline__year' }, sameYear ? MONTHS[d.getMonth()] : String(d.getFullYear())),
           list));
       }
-      list.append(h('li', null, h('a', { class: `timeline__row is-${r.status}`, href: `#/records/${r.recordId}` },
+      list.append(h('li', null, h('a', { class: `timeline__row is-${r.status}`, href: r.href },
         h('span', { class: 'timeline__date' },
           sameYear
             ? h('span', { class: 'timeline__day' }, pad2(d.getDate()))
@@ -48,7 +51,7 @@ export async function remindersPage({ query }) {
         h('span', { class: 'timeline__main' },
           h('span', { class: 'timeline__title' }, r.title),
           r.note && h('span', { class: 'timeline__note' }, r.note)),
-        h('span', { class: 'timeline__meta' }, r.status === 'done' ? 'Done' : r.status === 'overdue' ? dueInWords(r.due) : r.repeat))));
+        h('span', { class: 'timeline__meta' }, r.status === 'done' ? 'Done' : r.status === 'overdue' || r.kind === 'expiry' ? words(r) : r.repeat))));
     }
   }
 

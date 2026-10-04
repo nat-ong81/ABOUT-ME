@@ -59,6 +59,26 @@ export function defs(pairs) {
     h('dt', { class: 'label' }, k), h('dd', { class: cls || null }, v))));
 }
 
+// One item at a time: swipe sideways or use the arrows to see the others.
+export function pager(slides) {
+  if (slides.length < 2) return h('div', { class: 'pager pager--single' }, slides);
+  const track = h('div', { class: 'pager__track' }, slides.map((s) => h('div', { class: 'pager__slide' }, s)));
+  const count = h('span', { class: 'pager__count', 'aria-live': 'polite' });
+  const index = () => Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+  const go = (d) => track.scrollTo({ left: (index() + d) * track.clientWidth, behavior: 'smooth' });
+  const prev = h('button', { class: 'pager__arrow pager__arrow--prev', type: 'button', 'aria-label': 'Newer entry', onclick: () => go(-1) });
+  const next = h('button', { class: 'pager__arrow pager__arrow--next', type: 'button', 'aria-label': 'Older entry', onclick: () => go(1) });
+  const sync = () => {
+    const i = index();
+    prev.disabled = i <= 0;
+    next.disabled = i >= slides.length - 1;
+    count.textContent = `${i + 1} / ${slides.length}`;
+  };
+  track.addEventListener('scroll', sync, { passive: true });
+  sync();
+  return h('div', { class: 'pager' }, prev, track, next, count);
+}
+
 export function searchPill() {
   const q = h('input', {
     class: 'search__input', type: 'search', name: 'q', placeholder: 'Search', 'aria-label': 'Search my index',

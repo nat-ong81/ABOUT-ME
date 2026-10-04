@@ -25,7 +25,7 @@ export function meTitle(entry, group) {
 
 export function meSummary(entry, group) {
   const d = entry.data || {};
-  if (group?.id === 'medication') return [d.dosage, d.frequency].filter(Boolean).join(', ');
+  if (group?.id === 'medication') return [d.use, d.dosage].filter(Boolean).join(', ');
   if (group?.id === 'allergies') return d.reaction || '';
   if (group?.layout === 'rx') return d.optometrist || '';
   if (group?.custom) return (entry.pairs || []).filter((p) => p.value).map((p) => (p.label ? `${p.label} ${p.value}` : p.value)).join(', ');
@@ -36,6 +36,7 @@ export function meText(entry, group) {
   const d = entry.data || {};
   const parts = [group?.name, group?.item, ...Object.values(d)];
   for (const p of entry.pairs || []) parts.push(p.label, p.value);
+  for (const p of entry.prices || []) parts.push(p.place);
   if (group?.layout === 'rx') parts.push('glasses prescription', ...RX_EYES.map((e) => e.name), ...RX_COLUMNS.map((c) => c.name));
   return parts.filter(Boolean).join(' ');
 }

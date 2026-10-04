@@ -8,7 +8,7 @@
 
 import { h } from './ui/dom.js';
 import { initStorage, requestPersistence } from './storage/index.js';
-import { defineRoutes, startRouter, stopView, rerender } from './router.js';
+import { defineRoutes, startRouter, stopView, rerender, navigate } from './router.js';
 import { applyTheme } from './theme.js';
 import { lock } from './lock.js';
 import { platform } from './platform.js';
@@ -28,6 +28,7 @@ const outlet = document.getElementById('view');
 const crumbsEl = document.getElementById('crumbs');
 const toolsEl = document.getElementById('tools');
 const footEl = document.getElementById('foot');
+const backEl = document.getElementById('back');
 
 async function notFound(ctx = {}) {
   return {
@@ -86,6 +87,10 @@ function chrome(result) {
     here.remove();
   }
   toolsEl.replaceChildren(h('a', { href: '#/settings' }, 'Settings'));
+  // Back arrow, bottom left: the previous page, or the parent if there is none.
+  const parent = [...crumbs].reverse().find((c) => c.href)?.href || '#/';
+  backEl.hidden = isHome;
+  backEl.onclick = () => (history.length > 1 ? history.back() : navigate(parent));
   // Search sits at the foot of every page except home (which has its own),
   // the search page and forms (which end in Save / Cancel).
   footEl.hidden = isHome || !!result.hideFoot || !!outlet.querySelector('form.form');

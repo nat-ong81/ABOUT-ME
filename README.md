@@ -85,6 +85,16 @@ storage, write three classes with the same methods and construct them there.
 
 Dates are `YYYY-MM-DD` strings. Every row also has `createdAt` / `updatedAt`.
 
+## Added in 1.3
+
+- Back arrow fixed at the bottom left of every page except home.
+- Prescriptions show one at a time in a swipeable pager (`pager()` in `js/ui/components.js`).
+- Medication entries have `use` and a `prices: [{ place, price, date }]` comparison list.
+- Creating a custom Profile section opens its first entry form straight away.
+- Products have a `price`. Inventory items have `qty` and `expiry`; items that
+  expire within six months are added to the reminders (`expiryReminders` in
+  `js/domain/reminders.js`) and to "Upcoming" on the home page.
+
 ## Reminders
 
 Reminders are not entered separately. A record carries an optional reminder

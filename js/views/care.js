@@ -116,6 +116,7 @@ export async function productDetail({ params }) {
     h('div', { class: 'product__plate' },
       cover ? gallery([cover], { alt: productTitle(p) }) : picture(null, { cls: 'product__blank', placeholder: p.brand || p.name })),
     h('div', { class: 'product__text' },
+      p.price && h('p', { class: 'product__price' }, p.price),
       h('p', { class: 'label' }, p.brand || categoryName(p.category)),
       h('h1', { class: 'title product__name' }, p.name || 'Untitled'),
       p.shade && h('p', { class: 'product__shade' }, p.shade),
@@ -151,6 +152,7 @@ export async function productForm({ params, query }) {
   const name = input({ value: editing?.name || '', maxLength: 120 });
   const category = select(CARE_CATEGORIES, startCategory);
   const shade = input({ value: editing?.shade || '', placeholder: 'Shade, size or scent', maxLength: 80 });
+  const price = input({ value: editing?.price || '', placeholder: '45.00', maxLength: 30 });
   const notes = textarea({ value: editing?.notes || '' });
   const url = input({ type: 'url', inputmode: 'url', autocapitalize: 'off', value: editing?.url || '', placeholder: 'https://' });
   const favourite = h('input', { type: 'checkbox', class: 'check__box', checked: !!editing?.favourite, id: 'fav-check' });
@@ -171,7 +173,7 @@ export async function productForm({ params, query }) {
     const product = {
       id: editing?.id || uid(),
       brand: brand.value.trim(), name: name.value.trim(), category: category.value,
-      shade: shade.value.trim(), notes: notes.value.trim(), favourite: favourite.checked,
+      shade: shade.value.trim(), price: price.value.trim(), notes: notes.value.trim(), favourite: favourite.checked,
       url: safeUrl(url.value), fileIds: photos.value(),
       createdAt: editing?.createdAt || now, updatedAt: now,
     };
@@ -189,6 +191,7 @@ export async function productForm({ params, query }) {
     field('Product name', name),
     field('Category', category),
     field('Shade / variant', shade),
+    field('Price', price),
     field('Notes', notes),
     field('Shop link', url),
     h('label', { class: 'check', for: 'fav-check' }, favourite, h('span', null, 'Favourite')),

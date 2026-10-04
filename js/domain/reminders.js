@@ -8,6 +8,7 @@
 
 import { RECORD_TYPES, REPEATS, INTERVAL_UNITS } from '../config.js';
 import { addInterval, daysBetween, todayISO, plural } from '../util.js';
+import { inventoryView } from './model.js';
 
 const typeById = Object.fromEntries(RECORD_TYPES.map((t) => [t.id, t]));
 
@@ -54,6 +55,7 @@ export function reminderOf(record, today = todayISO()) {
   return {
     id: record.id,
     recordId: record.id,
+    href: `#/records/${record.id}`,
     due: rem.due,
     title: recordTitle(record),
     note: (rem.note || '').trim() || record.provider || '',
@@ -70,6 +72,28 @@ export function remindersFrom(records, today = todayISO()) {
 
 export function nextUpcoming(records, today = todayISO()) {
   return remindersFrom(records, today).find((r) => r.status === 'upcoming') || null;
+}
+
+// Inventory items that expire within six months are reminders too.
+export function expiryReminders(items, nameOf, today = todayISO()) {
+  const limit = addInterval(today, 6, 'month');
+  return items
+    .filter((i) => i.expiry && !i.archived && i.status !== 'finished' && i.expiry <= limit)
+    .map((i) => {
+      const expired = i.expiry < today;
+      return {
+        id: 'inv-' + i.id, kind: 'expiry', due: i.expiry, href: `#/inventory/${i.id}/edit`,
+        title: expired ? 'Expired' : 'Expiring', note: nameOf(i), repeat: 'Inventory',
+        status: expired ? 'overdue' : 'upcoming',
+      };
+    });
+}
+
+export function allReminders(records, inventory = [], products = [], today = todayISO()) {
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const nameOf = (i) => { const v = inventoryView(i, byId); return [v.brand, v.name].filter(Boolean).join(' '); };
+  return [...remindersFrom(records, today), ...expiryReminders(inventory, nameOf, today)]
+    .sort((a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title));
 }
 
 // When a new record is filed, earlier open reminders of the same kind are done.

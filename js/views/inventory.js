@@ -8,7 +8,7 @@ import {
   photoField, picture, confirmDialog, toast,
 } from '../ui/components.js';
 import { inventoryView, productTitle, statusName } from '../domain/model.js';
-import { uid, byText, plural } from '../util.js';
+import { uid, byText, plural, fmtShort, todayISO } from '../util.js';
 
 const HOME = { label: 'Home', href: '#/' };
 const INVENTORY = { label: 'Inventory', href: '#/inventory' };
@@ -40,7 +40,11 @@ function row({ item, v }, { archived = false } = {}) {
     h('div', { class: 'stock__main' },
       v.brand && h('p', { class: 'label' }, v.brand),
       h('p', { class: 'stock__name' }, v.product ? h('a', { href: `#/care/${v.product.category}/${v.product.id}` }, v.name) : v.name),
-      v.shade && h('p', { class: 'stock__shade' }, v.shade)),
+      v.shade && h('p', { class: 'stock__shade' }, v.shade),
+      (item.qty > 1 || item.expiry) && h('p', { class: 'stock__meta' }, [
+        item.qty > 1 ? `Qty ${item.qty}` : null,
+        item.expiry ? `${item.expiry < todayISO() ? 'Expired' : 'Expires'} ${fmtShort(item.expiry)}` : null,
+      ].filter(Boolean).join(' / '))),
     h('div', { class: 'stock__state' },
       archived
         ? [h('span', { class: 'label' }, statusName(item.status)),
@@ -96,6 +100,8 @@ export async function inventoryForm({ params, query }) {
   ], startProduct);
   const name = input({ value: editing?.name || '', placeholder: 'Product name', maxLength: 120 });
   const status = select(INVENTORY_STATUSES, editing?.status || 'open');
+  const qty = input({ type: 'number', min: 1, max: 999, step: 1, inputmode: 'numeric', value: editing?.qty || 1 });
+  const expiry = input({ type: 'date', value: editing?.expiry || '' });
   const photos = photoField({ ids: editing?.fileIds || [], multiple: false, documents: false });
 
   const nameField = field('Product name', name);
@@ -123,6 +129,8 @@ export async function inventoryForm({ params, query }) {
       name: product.value ? '' : name.value.trim(),
       fileIds: photos.value(),
       status: status.value,
+      qty: Math.max(1, parseInt(qty.value, 10) || 1),
+      expiry: expiry.value || '',
       archived: editing?.archived || false,
       createdAt: editing?.createdAt || now, updatedAt: now,
     });
@@ -134,6 +142,8 @@ export async function inventoryForm({ params, query }) {
     field('Product', product, { hint: sorted.length ? null : 'Products you add under Self-care can be chosen here.' }),
     nameField,
     field('Status', status),
+    h('div', { class: 'field field--pair' }, field('Quantity', qty), field('Expiry date', expiry)),
+    h('p', { class: 'hint' }, 'Items expiring within six months appear with your reminders.'),
     h('div', { class: 'field' }, h('span', { class: 'label' }, 'Photo'), photos.node,
       h('p', { class: 'hint' }, 'Optional. A product from your library uses its own photo.')),
     formActions({ submit: editing ? 'Save changes' : 'Add to inventory', cancelHref: '#/inventory', onDelete: editing ? del : null, deleteLabel: 'Remove item' }));

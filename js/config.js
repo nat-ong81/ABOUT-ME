@@ -4,7 +4,7 @@
 export const APP = {
   id: 'index-of-me',
   name: 'About Me',
-  version: '1.2.1',
+  version: '1.3.0',
   schema: 1,
 };
 
@@ -81,8 +81,10 @@ export const ME_GROUPS = [
     name: 'Medication',
     item: 'Medication',
     titleKey: 'name',
+    prices: true,
     fields: [
       { key: 'name', label: 'Medication name', required: true },
+      { key: 'use', label: 'Use', placeholder: 'What it is for' },
       { key: 'dosage', label: 'Dosage', placeholder: '10 mg' },
       { key: 'frequency', label: 'Frequency', placeholder: 'Once daily' },
       { key: 'notes', label: 'Notes', type: 'textarea' },

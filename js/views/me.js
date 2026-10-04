@@ -5,10 +5,10 @@ import { navigate } from '../router.js';
 import { removeFiles } from '../attachments.js';
 import {
   spread, act, defs, field, input, textarea, formActions, formError,
-  photoField, gallery, confirmDialog, toast, sectionLabel,
+  photoField, gallery, confirmDialog, toast, sectionLabel, pager,
 } from '../ui/components.js';
 import { allGroups, meTitle, meSummary } from '../domain/model.js';
-import { uid, fmtDate, fmtShort, byText } from '../util.js';
+import { uid, fmtDate, fmtShort, byText, todayISO } from '../util.js';
 
 const HOME = { label: 'Home', href: '#/' };
 const ME = { label: 'Profile', href: '#/me' };
@@ -47,20 +47,17 @@ export async function mePage() {
     if (!mine.length) {
       section.append(h('p', { class: 'sheet__empty' }, g.layout === 'rx' ? 'No prescription on file.' : 'Nothing on file.'));
     } else if (g.layout === 'rx') {
-      const [latest, ...older] = mine;
-      const d = latest.data || {};
-      section.append(h('a', { class: 'rx-card', href: `#/me/${g.id}/${latest.id}` },
-        rxTable(d),
-        h('span', { class: 'rx-card__meta' },
-          d.pd && h('span', null, h('span', { class: 'label' }, 'PD'), ' ', d.pd),
-          d.issued && h('span', null, h('span', { class: 'label' }, 'Issued'), ' ', fmtShort(d.issued)),
-          d.optometrist && h('span', null, d.optometrist))));
-      if (older.length) {
-        section.append(h('ul', { class: 'lines lines--quiet' }, older.map((e) => h('li', null,
-          h('a', { class: 'lines__row', href: `#/me/${g.id}/${e.id}` },
-            h('span', { class: 'lines__title' }, meTitle(e, g)),
-            h('span', { class: 'lines__sub' }, 'Earlier'))))));
-      }
+      // Newest first; older prescriptions are a swipe (or arrow) away.
+      section.append(pager(mine.map((e, i) => {
+        const d = e.data || {};
+        return h('a', { class: 'rx-card', href: `#/me/${g.id}/${e.id}` },
+          rxTable(d),
+          h('span', { class: 'rx-card__meta' },
+            h('span', { class: 'label' }, i === 0 ? 'Current' : 'Earlier'),
+            d.issued && h('span', null, 'Issued ', fmtShort(d.issued)),
+            d.pd && h('span', null, 'PD ', d.pd),
+            d.optometrist && h('span', null, d.optometrist)));
+      })));
     } else {
       section.append(h('ul', { class: 'lines' }, mine.map((e) => h('li', null,
         h('a', { class: 'lines__row', href: `#/me/${g.id}/${e.id}` },
@@ -78,6 +75,16 @@ export async function mePage() {
       actions: [act('Add section +', '#/me/sections/new')],
     }, body),
   };
+}
+
+function priceTable(prices) {
+  const num = (p) => { const n = parseFloat(String(p.price).replace(/[^0-9.]/g, '')); return Number.isFinite(n) ? n : Infinity; };
+  const rows = [...prices].sort((a, b) => num(a) - num(b));
+  return h('div', { class: 'prices' }, sectionLabel('Price comparison'),
+    h('table', { class: 'ptable' },
+      h('thead', null, h('tr', null, ['Pharmacy', 'Price', 'Surveyed'].map((t) => h('th', { scope: 'col' }, t)))),
+      h('tbody', null, rows.map((p, i) => h('tr', { class: i === 0 && rows.length > 1 ? 'is-lowest' : null },
+        h('td', null, p.place || '–'), h('td', null, p.price || '–'), h('td', null, p.date ? fmtShort(p.date) : '–'))))));
 }
 
 // ---- one entry ---------------------------------------------------------------
@@ -115,7 +122,7 @@ export async function meDetail({ params }) {
       kicker: g.name, title,
       lede: g.layout === 'rx' && d.issued ? `Issued ${fmtDate(d.issued)}` : null,
       actions: [act('Edit', `#/me/${g.id}/${e.id}/edit`), act('Delete', del, { quiet: true })],
-    }, h('div', null, content, gallery(e.fileIds, { alt: title }))),
+    }, h('div', null, content, g.prices && e.prices?.length ? priceTable(e.prices) : null, gallery(e.fileIds, { alt: title }))),
   };
 }
 
@@ -147,18 +154,18 @@ export async function meForm({ params }) {
 
   if (g.custom) {
     controls.title = input({ value: d.title || '', placeholder: 'Ring size, blood type, passport…', maxLength: 80 });
-    parts.push(field('Title', controls.title));
+    parts.push(field('Entry title', controls.title));
     pairsBox = h('div', { class: 'pairs' });
     const addPair = (p = {}) => {
       const row = h('div', { class: 'pairs__row' },
-        input({ value: p.label || '', placeholder: 'Label', 'aria-label': 'Label', class: 'input pairs__label' }),
-        input({ value: p.value || '', placeholder: 'Value', 'aria-label': 'Value', class: 'input pairs__value' }),
+        input({ value: p.label || '', placeholder: 'Header', 'aria-label': 'Header', class: 'input pairs__label' }),
+        input({ value: p.value || '', placeholder: 'Text', 'aria-label': 'Text', class: 'input pairs__value' }),
         h('button', { class: 'act act--quiet', type: 'button', onclick: () => row.remove() }, 'Remove'));
       pairsBox.append(row);
     };
     (editing?.pairs?.length ? editing.pairs : [{}]).forEach(addPair);
-    parts.push(h('div', { class: 'field' }, h('span', { class: 'label' }, 'Details'), pairsBox,
-      h('button', { class: 'act', type: 'button', onclick: () => addPair() }, 'Add a detail')));
+    parts.push(h('div', { class: 'field' }, h('span', { class: 'label' }, 'Fields'), pairsBox,
+      h('button', { class: 'act', type: 'button', onclick: () => addPair() }, 'Add field +')));
     controls.notes = textarea({ value: d.notes || '' });
     parts.push(field('Notes', controls.notes));
   } else {
@@ -167,6 +174,22 @@ export async function meForm({ params }) {
       controls[f.key] = f.type === 'textarea' ? textarea(props) : input({ ...props, type: f.type === 'date' ? 'date' : 'text' });
       parts.push(field(f.label, controls[f.key]));
     }
+  }
+
+  let pricesBox = null;
+  if (g.prices) {
+    pricesBox = h('div', { class: 'pairs' });
+    const addPrice = (p = {}) => {
+      const row = h('div', { class: 'prices__row' },
+        input({ value: p.place || '', placeholder: 'Pharmacy', 'aria-label': 'Pharmacy', class: 'input prices__place' }),
+        input({ value: p.price || '', placeholder: 'Price', 'aria-label': 'Price', class: 'input prices__price' }),
+        input({ type: 'date', value: p.date || '', 'aria-label': 'Date surveyed', class: 'input prices__date' }),
+        h('button', { class: 'act act--quiet', type: 'button', onclick: () => row.remove() }, 'Remove'));
+      pricesBox.append(row);
+    };
+    (editing?.prices || []).forEach(addPrice);
+    parts.push(h('div', { class: 'field' }, h('span', { class: 'label' }, 'Price comparison'), pricesBox,
+      h('button', { class: 'act', type: 'button', onclick: () => addPrice({ date: todayISO() }) }, 'Add price +')));
   }
 
   const photos = g.photos ? photoField({ ids: editing?.fileIds || [] }) : null;
@@ -190,6 +213,11 @@ export async function meForm({ params }) {
     const now = Date.now();
     const entry = {
       id: editing?.id || uid(), group: g.id, data, pairs,
+      prices: pricesBox ? [...pricesBox.querySelectorAll('.prices__row')].map((r) => ({
+        place: r.querySelector('.prices__place').value.trim(),
+        price: r.querySelector('.prices__price').value.trim(),
+        date: r.querySelector('.prices__date').value,
+      })).filter((p) => p.place || p.price) : undefined,
       fileIds: photos ? photos.value() : [],
       createdAt: editing?.createdAt || now, updatedAt: now,
     };
@@ -230,12 +258,14 @@ export async function meSectionForm({ params }) {
   const form = h('form', { class: 'form', novalidate: true, onsubmit: async (ev) => {
     ev.preventDefault();
     if (!name.value.trim()) return formError(form, 'Give the section a name.');
-    await db.put('groups', { id: editing?.id || uid(), name: name.value.trim(), createdAt: editing?.createdAt || Date.now() });
-    toast(editing ? 'Section renamed' : 'Section added');
-    navigate('me', { replace: true });
+    const id = editing?.id || uid();
+    await db.put('groups', { id, name: name.value.trim(), createdAt: editing?.createdAt || Date.now() });
+    toast(editing ? 'Section renamed' : 'Section added. Now add its first entry.');
+    // A new section opens straight onto its first entry.
+    navigate(editing ? 'me' : `me/${id}/new`, { replace: true });
   } },
-    field('Section name', name, { hint: 'A section holds entries of your own design: a title, any details you like, notes and photos.' }),
-    formActions({ submit: editing ? 'Save changes' : 'Add section', cancelHref: '#/me', onDelete: editing ? del : null, deleteLabel: 'Delete section' }));
+    field('Section name', name, { hint: 'After naming it you add entries: each has a title, your own header and text fields, notes, and photos or documents.' }),
+    formActions({ submit: editing ? 'Save changes' : 'Next', cancelHref: '#/me', onDelete: editing ? del : null, deleteLabel: 'Delete section' }));
 
   return {
     crumbs: [HOME, ME, { label: editing ? 'Edit section' : 'New section' }],

@@ -2,7 +2,7 @@ import { h } from '../ui/dom.js';
 import { db } from '../storage/index.js';
 import { SECTIONS } from '../config.js';
 import { refresh } from '../router.js';
-import { remindersFrom } from '../domain/reminders.js';
+import { allReminders } from '../domain/reminders.js';
 import { addFile, removeFile, fileMeta } from '../attachments.js';
 import { picture, searchPill, toast } from '../ui/components.js';
 import { fmtDayMonth } from '../util.js';
@@ -10,7 +10,8 @@ import { fmtDayMonth } from '../util.js';
 const PHOTO_ID = 'profile-photo'; // one fixed file, so it travels with backups
 
 export async function home() {
-  const reminders = remindersFrom(await db.all('records'));
+  const [records, inventory, products] = await Promise.all(['records', 'inventory', 'products'].map((s) => db.all(s)));
+  const reminders = allReminders(records, inventory, products);
   const next = reminders.find((r) => r.status === 'upcoming');
   const overdue = reminders.filter((r) => r.status === 'overdue').length;
   const hasPhoto = !!(await fileMeta(PHOTO_ID));
@@ -40,7 +41,7 @@ export async function home() {
     h('a', { class: 'upcoming', href: '#/reminders' },
       h('span', { class: 'label' }, 'Upcoming'),
       h('span', { class: 'upcoming__row' },
-        h('span', null, next ? `${next.title}, ${fmtDayMonth(next.due)}` : 'Nothing upcoming'),
+        h('span', null, next ? `${next.kind === 'expiry' ? `${next.title}: ${next.note}` : next.title}, ${fmtDayMonth(next.due)}` : 'Nothing upcoming'),
         overdue ? h('span', { class: 'upcoming__overdue' }, `${overdue} overdue`) : null)),
   );
 
